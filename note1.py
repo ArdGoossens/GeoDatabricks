@@ -24,6 +24,8 @@
 # MAGIC application_cities.createOrReplaceTempView("Cities")
 # MAGIC application_countries.createOrReplaceTempView("Countries")
 # MAGIC application_stateprovinces.createOrReplaceTempView("StateProvinces")
+# MAGIC 
+# MAGIC %sql
 
 # COMMAND ----------
 
