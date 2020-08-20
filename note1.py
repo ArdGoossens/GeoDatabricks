@@ -24,6 +24,7 @@ dbutils.fs.ls("/mnt/GeoUpload/")
 # COMMAND ----------
 
 #see the start of a file:  
+# %fs head dbfs:/mnt/GeoUpload/DINOBRO_EntityDescriptions_20200623.json
 dbutils.fs.head("/mnt/GeoUpload/DINOBRO_EntityDescriptions_20200623.json", 10000)
 
 # COMMAND ----------
@@ -36,6 +37,23 @@ RawDF = (spark.read           # The DataFrameReader
     .json(jsonFile, multiLine=True)                 # Creates a DataFrame from JSON after reading in the file
  )
 RawDF.printSchema()
+
+# COMMAND ----------
+
+# create a view called wiki_edits
+RawDF.createOrReplaceTempView("RawView")
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC 
+# MAGIC SELECT * FROM RawView 
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC 
+# MAGIC SELECT Created, EntityExternalId, Valid, Data.deliveryContext.`@xmlns` `Data.deliveryContext.@xmlns`   FROM RawView 
 
 # COMMAND ----------
 
