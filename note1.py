@@ -5,11 +5,22 @@
 #  mount_point = "/mnt/<mount-name>",
 #  extra_configs = {"<conf-key>":dbutils.secrets.get(scope = "<scope-name>", key = "<key-name>")})
 
-dbutils.fs.mount(
- source = "wasbs://uploads@storage0000s7qefz5aot56o.blob.core.windows.net",
- mount_point = "/mnt/GeoUpload",
- extra_configs = {"fs.azure.account.key.storage0000s7qefz5aot56o.blob.core.windows.net": "KSVFTSoMw5iUPjheqOR9+KWX2RN6bEUsk73shpl/Y+NGuM3WlVZZYRazyIn3y9EzbUJjyXZAuiRNATRzVB5cFg=="}
-)
+if not any(mount.mountPoint == '/mnt/GeoUpload' for mount in dbutils.fs.mounts()):
+  dbutils.fs.mount(
+   source = "wasbs://uploads@storage0000s7qefz5aot56o.blob.core.windows.net",
+   mount_point = "/mnt/GeoUpload",
+   extra_configs = {"fs.azure.account.key.storage0000s7qefz5aot56o.blob.core.windows.net": "KSVFTSoMw5iUPjheqOR9+KWX2RN6bEUsk73shpl/Y+NGuM3WlVZZYRazyIn3y9EzbUJjyXZAuiRNATRzVB5cFg=="}
+  )
+
+  # OR
+try:
+   dbutils.fs.mount(
+   source = "wasbs://uploads@storage0000s7qefz5aot56o.blob.core.windows.net",
+   mount_point = "/mnt/GeoUpload",
+   extra_configs = {"fs.azure.account.key.storage0000s7qefz5aot56o.blob.core.windows.net": "KSVFTSoMw5iUPjheqOR9+KWX2RN6bEUsk73shpl/Y+NGuM3WlVZZYRazyIn3y9EzbUJjyXZAuiRNATRzVB5cFg=="}
+  )
+except Exception as e:
+  print("already mounted. Try to unmount first")
 
 # COMMAND ----------
 
@@ -79,7 +90,7 @@ display(Neat2)
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 # get the value from keyvault
-only mount if mount doesn't exist
+
 
 
 
