@@ -68,9 +68,10 @@ RawDF.createOrReplaceTempView("RawView")
 
 # COMMAND ----------
 
-tablename="SELECT Created, EntityExternalId, Valid, Data.deliveryContext.`@xmlns` `Data.deliveryContext.@xmlns` FROM RawView"
-columns ='"Created","EntityExternalId","Valid","xml"'
-neatDF = spark.sql(tablename).toDF("Created","EntityExternalId","Valid","xml")
+   paths="Created, EntityExternalId, Valid, Data.deliveryContext.`@xmlns`"
+columns ='"Created","EntityExternalId","Valid","Data.deliveryContext.@xmlns"'
+
+exec('neatDF = spark.sql(" SELECT '+paths+' FROM RawView").toDF('+columns+')')
 neatDF.show()
 
 
@@ -88,8 +89,25 @@ display(Neat2)
 
 # COMMAND ----------
 
+# dynamic dataframa manupulation
+
+paths ='"Created","EntityExternalId","Valid","Data.deliveryContext.`@xmlns`"'
+columns ='"Created","EntityExternalId","Valid","Data.deliveryContext.@xmlns"'
+command='Neat3 = RawDF.select('+paths+').toDF('+columns+')'
+print (command)
+exec(command)
+display(Neat3)
+
+# COMMAND ----------
+
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-# get the value from keyvault
+#mount the container
+#mount only of not mounted
+get the storage key and name from keyvault
+get a value from SQL server
+use a function in SQL server
+# dynamic python dataframe code
+connect to SQL server
 
 
 
