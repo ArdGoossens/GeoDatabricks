@@ -100,6 +100,10 @@ display(Neat3)
 
 # COMMAND ----------
 
+
+
+# COMMAND ----------
+
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 #mount the container
 #mount only of not mounted
@@ -111,6 +115,88 @@ connect to SQL server
 
 
 
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val jdbcUsername = "Ard" //dbutils.secrets.get(scope = "key-vault-secrets", key = "sql-username")
+# MAGIC val jdbcPassword = "Goossens."//dbutils.secrets.get(scope = "key-vault-secrets", key = "sql-password")
+# MAGIC 
+# MAGIC Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver")
+# MAGIC 
+# MAGIC val jdbcHostname = "server00000s7qefz5aot56o"
+# MAGIC val jdbcPort = 1433
+# MAGIC val jdbcDatabase = "database000s7qefz5aot56o"
+# MAGIC 
+# MAGIC // Create the JDBC URL without passing in the user and password parameters.
+# MAGIC val jdbcUrl = "jdbc:sqlserver://server00000s7qefz5aot56o.database.windows.net:1433;database=database000s7qefz5aot56o;user=Ard@server00000s7qefz5aot56o;password=Goossens.;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;"
+# MAGIC 
+# MAGIC // Create a Properties() object to hold the parameters.
+# MAGIC import java.util.Properties
+# MAGIC val connectionProperties = new Properties()
+# MAGIC 
+# MAGIC connectionProperties.put("user", s"${jdbcUsername}")
+# MAGIC connectionProperties.put("password", s"${jdbcPassword}")
+# MAGIC 
+# MAGIC val driverClass = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
+# MAGIC connectionProperties.setProperty("Driver", driverClass)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val DataMart = spark.read.jdbc(jdbcUrl, "dbo.DataMart", connectionProperties)
+# MAGIC DataMart.printSchema
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE TABLE DataMarts
+# MAGIC USING org.apache.spark.sql.jdbc
+# MAGIC OPTIONS (
+# MAGIC   url "jdbc:sqlserver://server00000s7qefz5aot56o.database.windows.net:1433;database=database000s7qefz5aot56o;user=Ard@server00000s7qefz5aot56o;password=Goossens.;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;",
+# MAGIC   dbtable "dbo.DataMart"
+# MAGIC )
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC insert into DataMart
+# MAGIC select 'databricks'
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val DataMart = spark.read.jdbc(jdbcUrl, "tablefunction ('a')", connectionProperties)
+# MAGIC DataMart.show()
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC //DataMart.select("col1").show().first()
+# MAGIC import org.apache.spark.sql.Row
+# MAGIC val lijst = DataMart.select("col1").collectAsList()
+# MAGIC val rij = lijst.get(0)
+# MAGIC val naam = rij.getString(0)
+# MAGIC print(naam)
+
+# COMMAND ----------
+
+# MAGIC %scala 
+# MAGIC print(naam)
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE TABLE DataMart
+# MAGIC USING org.apache.spark.sql.jdbc
+# MAGIC OPTIONS (
+# MAGIC   url "jdbc:sqlserver://server00000s7qefz5aot56o.database.windows.net:1433;database=database000s7qefz5aot56o;user=Ard@server00000s7qefz5aot56o;password=Goossens.;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;",
+# MAGIC   dbtable "DB.DataMart"
+# MAGIC )
+
+# COMMAND ----------
+
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 # COMMAND ----------
 
@@ -137,7 +223,12 @@ connect to SQL server
 
 # COMMAND ----------
 
+display(ardDF)
+
+# COMMAND ----------
+
 # MAGIC %python
+# MAGIC 
 # MAGIC 
 # MAGIC ardP = sqlContext.table("ardTV")
 # MAGIC ardP.createTempView("ardVT")
