@@ -57,7 +57,31 @@ RawDF.createOrReplaceTempView("RawView")
 
 # COMMAND ----------
 
+tablename="SELECT Created, EntityExternalId, Valid, Data.deliveryContext.`@xmlns` `Data.deliveryContext.@xmlns` FROM RawView"
+columns ='"Created","EntityExternalId","Valid","xml"'
+neatDF = spark.sql(tablename).toDF("Created","EntityExternalId","Valid","xml")
+neatDF.show()
+
+
+# COMMAND ----------
+
+columns ='Created, EntityExternalId, Valid, Data.deliveryContext.`@xmlns` `Data.deliveryContext.@xmlns`'
+RawDF.select("Created","EntityExternalId","Valid","Data.deliveryContext.`@xmlns`").show()
+
+# COMMAND ----------
+
+columns ='"Created","EntityExternalId","Valid","Data.deliveryContext.`@xmlns`"'
+print (columns)
+Neat2 = RawDF.select("Created","EntityExternalId","Valid","Data.deliveryContext.`@xmlns`").toDF("Created","EntityExternalId","Valid","Data.deliveryContext.@xmlns")
+display(Neat2)
+
+# COMMAND ----------
+
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+# get the value from keyvault
+only mount if mount doesn't exist
+
+
 
 # COMMAND ----------
 
