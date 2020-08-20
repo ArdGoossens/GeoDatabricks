@@ -28,11 +28,12 @@ dbutils.fs.head("/mnt/GeoUpload/DINOBRO_EntityDescriptions_20200623.json", 10000
 
 # COMMAND ----------
 
+# read JSON file 
 jsonFile = "dbfs:/mnt/GeoUpload/DINOBRO_EntityDescriptions_20200623.json"
 
 RawDF = (spark.read           # The DataFrameReader
     .option("inferSchema", "true")  # Automatically infer data types & column names
-    .json(jsonFile)                 # Creates a DataFrame from JSON after reading in the file
+    .json(jsonFile, multiLine=True)                 # Creates a DataFrame from JSON after reading in the file
  )
 RawDF.printSchema()
 
