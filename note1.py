@@ -1,4 +1,47 @@
 # Databricks notebook source
+#mount the container
+#dbutils.fs.mount(
+#  source = "wasbs://<container-name>@<storage-account-name>.blob.core.windows.net",
+#  mount_point = "/mnt/<mount-name>",
+#  extra_configs = {"<conf-key>":dbutils.secrets.get(scope = "<scope-name>", key = "<key-name>")})
+
+dbutils.fs.mount(
+ source = "wasbs://uploads@storage0000s7qefz5aot56o.blob.core.windows.net",
+ mount_point = "/mnt/GeoUpload",
+ extra_configs = {"fs.azure.account.key.storage0000s7qefz5aot56o.blob.core.windows.net": "KSVFTSoMw5iUPjheqOR9+KWX2RN6bEUsk73shpl/Y+NGuM3WlVZZYRazyIn3y9EzbUJjyXZAuiRNATRzVB5cFg=="}
+)
+
+# COMMAND ----------
+
+# list mounts
+dbutils.fs.mounts()
+
+# COMMAND ----------
+
+#list files in a mount: 
+dbutils.fs.ls("/mnt/GeoUpload/")
+
+# COMMAND ----------
+
+#see the start of a file:  
+dbutils.fs.head("/mnt/GeoUpload/DINOBRO_EntityDescriptions_20200623.json", 10000)
+
+# COMMAND ----------
+
+jsonFile = "dbfs:/mnt/GeoUpload/DINOBRO_EntityDescriptions_20200623.json"
+
+RawDF = (spark.read           # The DataFrameReader
+    .option("inferSchema", "true")  # Automatically infer data types & column names
+    .json(jsonFile)                 # Creates a DataFrame from JSON after reading in the file
+ )
+RawDF.printSchema()
+
+# COMMAND ----------
+
+#-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+# COMMAND ----------
+
 # MAGIC %scala
 # MAGIC // import into cluster  com.microsoft.azure:azure-sqldb-spark:1.0.2.
 # MAGIC 
