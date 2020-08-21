@@ -51,6 +51,97 @@ RawDF.printSchema()
 
 # COMMAND ----------
 
+
+
+import pyspark.sql.functions as F
+
+def flatten_df(nested_df):
+    flat_cols = [c[0] for c in nested_df.dtypes if c[1][:6] != 'struct']
+    nested_cols = [c[0] for c in nested_df.dtypes if c[1][:6] == 'struct']
+
+    flat_df = nested_df.select(flat_cols +
+                               [F.col(nc+'.'+c).alias(nc+'_'+c)
+                                for nc in nested_cols
+                                for c in nested_df.select(nc+'.*').columns])
+    return flat_df
+  
+  
+
+jf= RawDF.schema.json()
+
+
+for name, values in RawDF:
+    print('{name}: {value}'.format(name=name, value=values[0]))
+
+
+#RawDF.write.json("test1")
+
+from pyspark.sql.types import StructType
+
+schema4 = [i for i in RawDF.schema] 
+schema5 = StructType(schema4)
+#print(schema5)
+
+schemeDF = spark.read.json(sc.parallelize([schema4]))
+#x= flatten_df(RawDF)
+#display(schemeDF)
+#RawDF.printSchema()
+#print (jf)
+#display(schemeDF)
+
+
+
+
+
+
+# COMMAND ----------
+
+fields = RawDF.schema.fields
+for field in fields:
+    print(field.name +"  "+str(field.dataType)[0:10])
+
+# COMMAND ----------
+
+from pyspark.sql.types import StructType, ArrayType  
+
+def flatten(schema, prefix=None):
+    fields = []
+    for field in schema.fields:
+        name = prefix + '.' + "`"+ field.name+"`" if prefix else "`"+field.name+"`"
+        dtype = field.dataType
+        if isinstance(dtype, ArrayType):
+            dtype = dtype.elementType
+
+        if isinstance(dtype, StructType):
+            fields += flatten(dtype, prefix=name)
+        else:
+            fields.append(name)
+
+    return fields
+
+x=flatten(RawDF.schema)
+from pandas import DataFrame
+
+df = DataFrame (x,columns=['First_Name'])
+print (df)
+
+
+#RawDF.select(flatten(RawDF.schema)).show()
+
+# COMMAND ----------
+
+def collectAllFieldNames(schema: StructType): 
+    List[String] = schema.fields.flatMap {
+        case StructField(name, structType: StructType, _, _) => name :: collectAllFieldNames(structType)
+        case StructField(name, ArrayType(structType: StructType, _), _, _) => name :: collectAllFieldNames(structType)
+        case StructField(name, _, _, _) => name :: Nil
+    }
+
+#collectAllFieldNames(RawDF.schema)      
+      
+
+# COMMAND ----------
+
 # create a view from a dataframe
 RawDF.createOrReplaceTempView("RawView")
 
