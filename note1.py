@@ -40,67 +40,111 @@ dbutils.fs.head("/mnt/GeoUpload/DINOBRO_EntityDescriptions_20200623.json", 10000
 
 # COMMAND ----------
 
-# read JSON file 
+# read JSON file in python
 jsonFile = "dbfs:/mnt/GeoUpload/DINOBRO_EntityDescriptions_20200623.json"
 
 RawDF = (spark.read           # The DataFrameReader
     .option("inferSchema", "true")  # Automatically infer data types & column names
-    .json(jsonFile, multiLine=True)                 # Creates a DataFrame from JSON after reading in the file
+    .json(jsonFile, multiLine=True) # Creates a DataFrame from JSON after reading in the file
  )
 RawDF.printSchema()
 
 # COMMAND ----------
 
-# create a view called wiki_edits
+# create a view from a dataframe
 RawDF.createOrReplaceTempView("RawView")
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC 
-# MAGIC SELECT * FROM RawView 
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC 
-# MAGIC SELECT Created, EntityExternalId, Valid, Data.deliveryContext.`@xmlns` `Data.deliveryContext.@xmlns`   FROM RawView 
-
-# COMMAND ----------
-
-   paths="Created, EntityExternalId, Valid, Data.deliveryContext.`@xmlns`"
+# dynamic sql selection in python
+paths="Created, EntityExternalId, Valid, Data.deliveryContext.`@xmlns`"
 columns ='"Created","EntityExternalId","Valid","Data.deliveryContext.@xmlns"'
 
 exec('neatDF = spark.sql(" SELECT '+paths+' FROM RawView").toDF('+columns+')')
 neatDF.show()
 
-
 # COMMAND ----------
 
-columns ='Created, EntityExternalId, Valid, Data.deliveryContext.`@xmlns` `Data.deliveryContext.@xmlns`'
-RawDF.select("Created","EntityExternalId","Valid","Data.deliveryContext.`@xmlns`").show()
-
-# COMMAND ----------
-
-columns ='"Created","EntityExternalId","Valid","Data.deliveryContext.`@xmlns`"'
-print (columns)
-Neat2 = RawDF.select("Created","EntityExternalId","Valid","Data.deliveryContext.`@xmlns`").toDF("Created","EntityExternalId","Valid","Data.deliveryContext.@xmlns")
+# dynamic dataframa selection in python
+paths   ='"Created","EntityExternalId","Valid","Data.deliveryContext.`@xmlns`"'
+columns ='"Created","EntityExternalId","Valid","Data.deliveryContext.@xmlns"'
+command='Neat2 = RawDF.select('+paths+').toDF('+columns+')'
+print (command)
+exec(command)
 display(Neat2)
 
 # COMMAND ----------
 
-# dynamic dataframa manupulation
+#loop though rows
+for row in Neat2.collect():
+      print (row.EntityExternalId)
+    
 
-paths ='"Created","EntityExternalId","Valid","Data.deliveryContext.`@xmlns`"'
-columns ='"Created","EntityExternalId","Valid","Data.deliveryContext.@xmlns"'
-command='Neat3 = RawDF.select('+paths+').toDF('+columns+')'
-print (command)
-exec(command)
-display(Neat3)
+# COMMAND ----------
+
+# from dataframe to variable in python
+for row in Neat2.filter(Neat2.EntityExternalId == 'B31G0262').collect():
+      X = str(row.EntityExternalId)
+print (X)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC // from table to variable in scala
+# MAGIC //val X =   DataMart.select("col1").collectAsList().get(0).getString(0)
+# MAGIC //print (X)
+
+# COMMAND ----------
+
+# create a view from a database table
+url = "jdbc:sqlserver://server00000s7qefz5aot56o.database.windows.net:1433;database=database000s7qefz5aot56o;user=Ard@server00000s7qefz5aot56o;password=Goossens.;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;"
+table = "DB.DataMart"
+DataMartPython = spark.read.format("jdbc")\
+  .option("url", url)\
+  .option("dbtable", table)\
+  .load()
+
+DataMartPython.createOrReplaceTempView("DataMartPython")
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select * from DataMartPython
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC //fetch metadata data from the catalog
+# MAGIC spark.catalog.listDatabases.show(false)
+# MAGIC spark.catalog.listTables.show(false)
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- select a tempview with substructure columns in SQL
+# MAGIC SELECT Created, EntityExternalId, Valid, Data.deliveryContext.`@xmlns` `Data.deliveryContext.@xmlns`   FROM RawView 
+
+# COMMAND ----------
+
+#fetch metadata data from the catalog
+spark.catalog.listDatabases()
+
+
+
+# COMMAND ----------
+
+#fetch metadata data from the catalog
+spark.catalog.listTables()
 
 # COMMAND ----------
 
 
+
+# COMMAND ----------
+
+# drop a view 
+spark.catalog.dropTempView("DataMartPython")
+spark.catalog.dropTempView("rawview")
 
 # COMMAND ----------
 
@@ -113,6 +157,10 @@ use a function in SQL server
 # dynamic python dataframe code
 connect to SQL server
 
+
+
+
+# COMMAND ----------
 
 
 
@@ -150,43 +198,38 @@ connect to SQL server
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC CREATE TABLE DataMarts
+# MAGIC CREATE TABLE DataMart
 # MAGIC USING org.apache.spark.sql.jdbc
 # MAGIC OPTIONS (
 # MAGIC   url "jdbc:sqlserver://server00000s7qefz5aot56o.database.windows.net:1433;database=database000s7qefz5aot56o;user=Ard@server00000s7qefz5aot56o;password=Goossens.;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;",
-# MAGIC   dbtable "dbo.DataMart"
+# MAGIC   dbtable "DB.DataMart"
 # MAGIC )
 
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC --using view to insert with IDENTITY ON
 # MAGIC insert into DataMart
 # MAGIC select 'databricks'
 
 # COMMAND ----------
 
 # MAGIC %scala
+# MAGIC // get result table function
 # MAGIC val DataMart = spark.read.jdbc(jdbcUrl, "tablefunction ('a')", connectionProperties)
 # MAGIC DataMart.show()
 
 # COMMAND ----------
 
 # MAGIC %scala
-# MAGIC //DataMart.select("col1").show().first()
-# MAGIC import org.apache.spark.sql.Row
-# MAGIC val lijst = DataMart.select("col1").collectAsList()
-# MAGIC val rij = lijst.get(0)
-# MAGIC val naam = rij.getString(0)
-# MAGIC print(naam)
-
-# COMMAND ----------
-
-# MAGIC %scala 
-# MAGIC print(naam)
+# MAGIC // from dataset to variable
+# MAGIC val naam2 =   DataMart.select("col1").collectAsList().get(0).getString(0)
+# MAGIC print (naam2)
 
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC -- create database table reference
 # MAGIC CREATE TABLE DataMart
 # MAGIC USING org.apache.spark.sql.jdbc
 # MAGIC OPTIONS (
@@ -197,6 +240,47 @@ connect to SQL server
 # COMMAND ----------
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+# COMMAND ----------
+
+from pyspark.sql.types import LongType
+def squared(s):
+  return s * s
+spark.udf.register("squaredWithPython", squared ,)
+
+spark.range(1, 20).createOrReplaceTempView("test")
+
+# COMMAND ----------
+
+# MAGIC %sql select  squaredWithPython(2) 
+
+# COMMAND ----------
+
+print(sq)
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE TABLE TF_table
+# MAGIC USING org.apache.spark.sql.jdbc
+# MAGIC OPTIONS (
+# MAGIC   url "jdbc:sqlserver://server00000s7qefz5aot56o.database.windows.net:1433;database=database000s7qefz5aot56o;user=Ard@server00000s7qefz5aot56o;password=Goossens.;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;",
+# MAGIC   dbtable "tablefunction ('a')"
+# MAGIC )
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select * from TF_table
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select max(col1) from TF_table
+
+# COMMAND ----------
+
+dbutils.widgets.help()
 
 # COMMAND ----------
 
@@ -220,10 +304,6 @@ connect to SQL server
 # MAGIC val ardDF = collection.toDF()
 # MAGIC ardDF.createTempView("ardTV")
 # MAGIC display(ardDF)
-
-# COMMAND ----------
-
-display(ardDF)
 
 # COMMAND ----------
 
