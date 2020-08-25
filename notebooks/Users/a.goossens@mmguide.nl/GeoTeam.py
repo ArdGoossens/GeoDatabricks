@@ -50,6 +50,10 @@ target ="team.Staging_" + Filetype
 
 # COMMAND ----------
 
+print(DB_ConnectionString)
+
+# COMMAND ----------
+
 #mount the container if not yet mounted
 
 if not any(mount.mountPoint == '/mnt/GeoUpload' for mount in dbutils.fs.mounts()):
@@ -75,7 +79,16 @@ JsonDF = (spark.read
 
 # COMMAND ----------
 
-#stagingDF = JsonDF.select("ExternalId").head()
+#JsonDF.printSchema()
+
+# COMMAND ----------
+
+#DFTemp = JsonDF.select(explode(F.col("TimeSerieDtos")).alias("TimeSerie"),"EntityExternalId","TimeResolution","TimeSerie.Time","TimeSerie.Tags","TimeSerie.Value","Customer","Type").drop("TimeSerie")
+#if dict(DFTemp.dtypes)['Tags'] == "string":
+#  stagingDF = DFTemp.select("EntityExternalId","TimeResolution","Time","Tags","Value","Customer","Type")
+#else:
+#  stagingDF = DFTemp.select("EntityExternalId","TimeResolution","Time",to_json("Tags").alias("Tags"),"Value","Customer","Type")
+#display(stagingDF)
 
 # COMMAND ----------
 
@@ -91,14 +104,15 @@ if Filetype=="EntityDescriptions":
   stagingDF = JsonDF.select("EntityExternalId","Created","Valid",to_json("Data").alias("Data"),"Customer","Type")
 
 if Filetype=="TimeEntities":
-  stagingDF = JsonDF.select(explode(F.col("TimeSerieDtos")).alias("TimeSerie"),"EntityExternalId","TimeResolution","TimeSerie.Time",to_json("TimeSerie.Tags").alias("Tags"),"TimeSerie.Value","Customer","Type").drop("TimeSerie")
+  DFTemp = JsonDF.select(explode(F.col("TimeSerieDtos")).alias("TimeSerie"),"EntityExternalId","TimeResolution","TimeSerie.Time","TimeSerie.Tags","TimeSerie.Value","Customer","Type").drop("TimeSerie")
+  if dict(DFTemp.dtypes)['Tags'] == "string":
+    stagingDF = DFTemp.select("EntityExternalId","TimeResolution","Time","Tags","Value","Customer","Type")
+  else:
+    stagingDF = DFTemp.select("EntityExternalId","TimeResolution","Time",to_json("Tags").alias("Tags"),"Value","Customer","Type")
+
 
 #stagingDF.printSchema()
 
 # COMMAND ----------
 
 stagingDF.write.jdbc(url=DB_ConnectionString, table=target, mode="append")
-
-# COMMAND ----------
-
-#dbutils.notebook.exit("returnValue")
