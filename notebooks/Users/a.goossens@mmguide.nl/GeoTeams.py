@@ -54,17 +54,16 @@ from pyspark.sql.functions import to_json, struct
 
 # COMMAND ----------
 
-import pyodbc
-
-conn = pyodbc.connect( 'DRIVER={ODBC Driver 17 for SQL Server};'
-                       'SERVER=server00000nd4wods4xqefm.database.windows.net;'
-                       'DATABASE=database000nd4wods4xqefm;UID=Ard;'
-                       'PWD=Goossens.')
-conn.autocommit = True
+#import pyodbc
+#conn = pyodbc.connect( 'DRIVER={ODBC Driver 17 for SQL Server};'
+#                       'SERVER=server00000nd4wods4xqefm.database.windows.net;'
+#                       'DATABASE=database000nd4wods4xqefm;UID=Ard;'
+#                       'PWD=Goossens.')
+#conn.autocommit = True
 
 #jdbc:sqlserver://server00000nd4wods4xqefm.database.windows.net:1433;database=database000nd4wods4xqefm;user=Ard@server00000nd4wods4xqefm;password=Goossens.;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;
 
 # Example doing a simple execute
-conn.execute('exec team.stp_import')
+#conn.execute('exec team.stp_import')
 
-conn.close()
+#conn.close()
