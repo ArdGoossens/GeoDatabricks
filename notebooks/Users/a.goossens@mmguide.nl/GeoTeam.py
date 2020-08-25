@@ -4,6 +4,9 @@ filename= dbutils.widgets.get("file")
 Filetype=""
 Customer=""
 
+import datetime
+nu= datetime.datetime.now()
+
 # COMMAND ----------
 
 GenID="nd4wods4xqefm"
@@ -116,3 +119,15 @@ if Filetype=="TimeEntities":
 # COMMAND ----------
 
 stagingDF.write.jdbc(url=DB_ConnectionString, table=target, mode="append")
+
+# COMMAND ----------
+
+import pyodbc
+conn = pyodbc.connect( 'DRIVER={ODBC Driver 17 for SQL Server};'
+                       'SERVER=server00000nd4wods4xqefm.database.windows.net;'
+                       'DATABASE=database000nd4wods4xqefm;UID=Ard;'
+                       'PWD=Goossens.')
+conn.autocommit = True
+command =  "exec team.stp_import '" + Filetype +"'" 
+conn.execute(command)
+conn.close()
