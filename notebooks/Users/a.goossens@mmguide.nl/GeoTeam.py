@@ -76,6 +76,7 @@ JsonDF = (spark.read
     .json(JsonFilename, multiLine=True)
      .withColumn('Customer', lit(Customer))
      .withColumn('Type', lit(Filetype))
+    .withColumn('ImportDateTime',lit(nu))
  )
 #JsonDF.printSchema()
 #JsonDF.createOrReplaceTempView("JsonFile")
@@ -101,17 +102,17 @@ from pyspark.sql import functions as F
           
 
 if Filetype=="Entities":
-  stagingDF = JsonDF.select ("ExternalId","Created","Customer","Type", to_json("Location").alias("Location"))
+  stagingDF = JsonDF.select ("ExternalId","Created","Customer","ImportDateTime", to_json("Location").alias("Location"))
   
 if Filetype=="EntityDescriptions":
-  stagingDF = JsonDF.select("EntityExternalId","Created","Valid",to_json("Data").alias("Data"),"Customer","Type")
+  stagingDF = JsonDF.select("EntityExternalId","Created","Valid",to_json("Data").alias("Data"),"Customer","ImportDateTime")
 
 if Filetype=="TimeEntities":
-  DFTemp = JsonDF.select(explode(F.col("TimeSerieDtos")).alias("TimeSerie"),"EntityExternalId","TimeResolution","TimeSerie.Time","TimeSerie.Tags","TimeSerie.Value","Customer","Type").drop("TimeSerie")
+  DFTemp = JsonDF.select(explode(F.col("TimeSerieDtos")).alias("TimeSerie"),"EntityExternalId","TimeResolution","TimeSerie.Time","TimeSerie.Tags","TimeSerie.Value","Customer","ImportDateTime").drop("TimeSerie")
   if dict(DFTemp.dtypes)['Tags'] == "string":
-    stagingDF = DFTemp.select("EntityExternalId","TimeResolution","Time","Tags","Value","Customer","Type")
+    stagingDF = DFTemp.select("EntityExternalId","TimeResolution","Time","Tags","Value","Customer","ImportDateTime")
   else:
-    stagingDF = DFTemp.select("EntityExternalId","TimeResolution","Time",to_json("Tags").alias("Tags"),"Value","Customer","Type")
+    stagingDF = DFTemp.select("EntityExternalId","TimeResolution","Time",to_json("Tags").alias("Tags"),"Value","Customer","ImportDateTime")
 
 
 #stagingDF.printSchema()
@@ -128,6 +129,6 @@ conn = pyodbc.connect( 'DRIVER={ODBC Driver 17 for SQL Server};'
                        'DATABASE=database000nd4wods4xqefm;UID=Ard;'
                        'PWD=Goossens.')
 conn.autocommit = True
-command =  "exec team.stp_import '" + Filetype +"'" 
+command =  "exec team.stp_import '" + Filetype +"','"+str(nu)+"'" 
 conn.execute(command)
 conn.close()
