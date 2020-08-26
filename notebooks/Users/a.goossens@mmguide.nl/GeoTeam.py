@@ -9,15 +9,29 @@ nu= datetime.datetime.now()
 
 # COMMAND ----------
 
+Servername = dbutils.secrets.get(scope = "keyvault", key = "ServerName")
+DatabaseName = dbutils.secrets.get(scope = "keyvault", key = "DatabaseName")
+StorageName = dbutils.secrets.get(scope = "keyvault", key = "StorageName")
+StorageKey = dbutils.secrets.get(scope = "keyvault", key = "StorageKey")
+administratorLogin = dbutils.secrets.get(scope = "keyvault", key = "administratorLogin")
+administratorLoginPassword = dbutils.secrets.get(scope = "keyvault", key = "administratorLoginPassword")
+
+
+print (Servername)
+
+
+# COMMAND ----------
+
+
+
 GenID="nd4wods4xqefm"
 
-DB_ConnectionString = "jdbc:sqlserver://server00000"+GenID+".database.windows.net:1433;database=database000"+GenID+";user=Ard@server00000"+GenID+";password=Goossens.;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;"
+DB_ConnectionString = "jdbc:sqlserver://"+Servername+".database.windows.net:1433;database="+DatabaseName+";user=Ard@"+Servername+";password=Goossens.;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;"
 
 #jdbc:sqlserver://server00000nd4wods4xqefm.database.windows.net:1433;database=database000nd4wods4xqefm;user=Ard@server00000nd4wods4xqefm;password={your_password_here};encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;
       
-StorageSource = "wasbs://uploads@storage0000"+GenID+".blob.core.windows.net"
-Storagekey="LOiBWxB03MobgbYT74xZo7e6ec89m9iV+pgctpIhMWKtXcSyqxGrzhRHp/RLI5uj9BCEYPSPsXMsS7MPCOzPQw=="
-StorageConfig= "fs.azure.account.key.storage0000"+GenID+".blob.core.windows.net"
+StorageSource = "wasbs://uploads@"+StorageName+".blob.core.windows.net"
+StorageConfig= "fs.azure.account.key."+StorageName+".blob.core.windows.net"
 
 JsonFilename ="dbfs:/mnt/GeoUpload/" +filename
 
@@ -125,8 +139,8 @@ stagingDF.write.jdbc(url=DB_ConnectionString, table=target, mode="append")
 
 import pyodbc
 conn = pyodbc.connect( 'DRIVER={ODBC Driver 17 for SQL Server};'
-                       'SERVER=server00000nd4wods4xqefm.database.windows.net;'
-                       'DATABASE=database000nd4wods4xqefm;UID=Ard;'
+                       'SERVER="+Servername+".database.windows.net;'
+                       'DATABASE="database000nd4wods4xqefm";UID=Ard;'
                        'PWD=Goossens.')
 conn.autocommit = True
 command =  "exec team.stp_import '" + Filetype +"','"+str(nu)+"'" 
