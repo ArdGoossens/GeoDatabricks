@@ -6,6 +6,7 @@ Customer=""
 
 import datetime
 nu= datetime.datetime.now()
+#via dbc
 
 
 # COMMAND ----------
