@@ -9,6 +9,18 @@ nu= datetime.datetime.now()
 
 # COMMAND ----------
 
+# MAGIC %sh
+# MAGIC curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
+# MAGIC curl https://packages.microsoft.com/config/ubuntu/16.04/prod.list > /etc/apt/sources.list.d/mssql-release.list 
+# MAGIC apt-get update
+# MAGIC ACCEPT_EULA=Y apt-get install msodbcsql17
+# MAGIC apt-get -y install unixodbc-dev
+# MAGIC sudo apt-get install python3-pip -y
+# MAGIC pip3 install --upgrade pyodbc
+
+# COMMAND ----------
+
+#key vault secrets
 Servername = dbutils.secrets.get(scope = "keyvault", key = "ServerName")
 DatabaseName = dbutils.secrets.get(scope = "keyvault", key = "DatabaseName")
 StorageName = dbutils.secrets.get(scope = "keyvault", key = "StorageName")
@@ -16,29 +28,20 @@ StorageKey = dbutils.secrets.get(scope = "keyvault", key = "StorageKey")
 administratorLogin = dbutils.secrets.get(scope = "keyvault", key = "administratorLogin")
 administratorLoginPassword = dbutils.secrets.get(scope = "keyvault", key = "administratorLoginPassword")
 
+#derived strings
+jdbc_ConnectionString = "jdbc:sqlserver://"+Servername+".database.windows.net:1433;database="+DatabaseName+";user=Ard@"+Servername+";password=Goossens.;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;"
+StorageSource = "wasbs://uploads@"+StorageName+".blob.core.windows.net"
+StorageConfig= "fs.azure.account.key."+StorageName+".blob.core.windows.net"
+
+odbc_ConnectionString ="DRIVER={ODBC Driver 17 for SQL Server};SERVER="+Servername+".database.windows.net;DATABASE="+DatabaseName+";UID="+administratorLogin+";PWD="+administratorLoginPassword
 
 print (Servername)
 
 
 # COMMAND ----------
 
-
-
-GenID="nd4wods4xqefm"
-
-DB_ConnectionString = "jdbc:sqlserver://"+Servername+".database.windows.net:1433;database="+DatabaseName+";user=Ard@"+Servername+";password=Goossens.;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;"
-
-#jdbc:sqlserver://server00000nd4wods4xqefm.database.windows.net:1433;database=database000nd4wods4xqefm;user=Ard@server00000nd4wods4xqefm;password={your_password_here};encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;
-      
-StorageSource = "wasbs://uploads@"+StorageName+".blob.core.windows.net"
-StorageConfig= "fs.azure.account.key."+StorageName+".blob.core.windows.net"
-
 JsonFilename ="dbfs:/mnt/GeoUpload/" +filename
-
-
-
 import re
-
 
 datafeed =re.compile("DINOBRO")
 if datafeed.search(filename):
@@ -67,7 +70,7 @@ target ="team.Staging_" + Filetype
 
 # COMMAND ----------
 
-print(DB_ConnectionString)
+#print(jdbc_ConnectionString)
 
 # COMMAND ----------
 
@@ -77,7 +80,7 @@ if not any(mount.mountPoint == '/mnt/GeoUpload' for mount in dbutils.fs.mounts()
   dbutils.fs.mount(
    source = StorageSource,
    mount_point = "/mnt/GeoUpload",
-   extra_configs = {StorageConfig: Storagekey }
+   extra_configs = {StorageConfig: StorageKey }
   )
 
 
@@ -101,12 +104,7 @@ JsonDF = (spark.read
 
 # COMMAND ----------
 
-#DFTemp = JsonDF.select(explode(F.col("TimeSerieDtos")).alias("TimeSerie"),"EntityExternalId","TimeResolution","TimeSerie.Time","TimeSerie.Tags","TimeSerie.Value","Customer","Type").drop("TimeSerie")
-#if dict(DFTemp.dtypes)['Tags'] == "string":
-#  stagingDF = DFTemp.select("EntityExternalId","TimeResolution","Time","Tags","Value","Customer","Type")
-#else:
-#  stagingDF = DFTemp.select("EntityExternalId","TimeResolution","Time",to_json("Tags").alias("Tags"),"Value","Customer","Type")
-#display(stagingDF)
+print(Filetype)
 
 # COMMAND ----------
 
@@ -133,15 +131,12 @@ if Filetype=="TimeEntities":
 
 # COMMAND ----------
 
-stagingDF.write.jdbc(url=DB_ConnectionString, table=target, mode="append")
+stagingDF.write.jdbc(url=jdbc_ConnectionString, table=target, mode="append")
 
 # COMMAND ----------
 
 import pyodbc
-conn = pyodbc.connect( 'DRIVER={ODBC Driver 17 for SQL Server};'
-                       'SERVER="+Servername+".database.windows.net;'
-                       'DATABASE="database000nd4wods4xqefm";UID=Ard;'
-                       'PWD=Goossens.')
+conn = pyodbc.connect( odbc_ConnectionString)
 conn.autocommit = True
 command =  "exec team.stp_import '" + Filetype +"','"+str(nu)+"'" 
 conn.execute(command)
