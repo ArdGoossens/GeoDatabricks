@@ -126,3 +126,5 @@ display(filecolDF)
 
 # COMMAND ----------
 
+leftDF = filecolDF.join(StrucDF, filecolDF.path == StrucDF.Name,how='left')
+display(leftDF)
