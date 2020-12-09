@@ -114,32 +114,68 @@ display(ImpCol)
 
 # distinct ImportId
 ImpDist =ImpCol.select(col("importid2").alias('importid')).distinct()
-ImpDist.show()
+#ImpDist.show()
+
+#combine filecolumns with possible imports
+FileImp=StrucDF.crossJoin(ImpDist).join(ImpCol, (StrucDF.Name == ImpCol.path2) & (StrucDF.Type == ImpCol.type2) & (ImpDist.importid == ImpCol.importid2), how='full')
+#FileImp.show()
+
+#determine all imports that don't fit
+ImpDel = FileImp.select('importid2').where(col("importid").isNull()).union(FileImp.select('importid').where(col("importid2").isNull())).distinct()
+#display(ImpDel)
+
+#remove ill fitting imports
+ImpFit = FileImp.where(~(FileImp["importid"].isNull()) & ~(FileImp["importid2"].isNull()))\
+.join(ImpDel, ImpDel.importid2 == FileImp.importid2, how="leftanti")\
+.select ('importid2').distinct()
+ImpFit.show()
+
+
 
 # COMMAND ----------
 
-res = StrucDF.crossJoin(ImpDist)
-
-
-res.show()
-
-# COMMAND ----------
-
-
-res2=res.join(ImpCol, (res.Name == ImpCol.path2) & (res.Type == ImpCol.type2) & (res.importid == ImpCol.importid2), how='full')
+res2=StrucDF.crossJoin(ImpDist).join(ImpCol, (StrucDF.Name == ImpCol.path2) & (StrucDF.Type == ImpCol.type2) & (ImpDist.importid == ImpCol.importid2), how='full')
 res2.show()
 
 # COMMAND ----------
 
-ImpDel1 = res2.select('importid').where(col("importid2").isNull()).distinct()
-ImpDel2 = res2.select('importid2').where(col("importid").isNull()).distinct()
+#res = StrucDF.crossJoin(ImpDist)
 
-ImpDel = ImpDel1.union(ImpDel2).distinct()
-display(ImpDel)
+
+#res.show()
 
 # COMMAND ----------
 
 
+#res2=res.join(ImpCol, (res.Name == ImpCol.path2) & (res.Type == ImpCol.type2) & (res.importid == ImpCol.importid2), how='full')
+#res2.show()
+
+# COMMAND ----------
+
+ImpDel = res2.select('importid2').where(col("importid").isNull()).union(res2.select('importid').where(col("importid2").isNull())).distinct()
+display(ImpDel)
+
+# COMMAND ----------
+
+#ImpDel1 = res2.select('importid').where(col("importid2").isNull()).distinct()
+#ImpDel2 = res2.select('importid2').where(col("importid").isNull()).distinct()
+
+#ImpDel = ImpDel1.union(ImpDel2).distinct()
+#display(ImpDel)
+
+# COMMAND ----------
+
+#res3 = res2.where(~(res2["importid"].isNull()) & ~(res2["importid2"].isNull()))
+#res4=  res3.join(ImpDel, (res2.importid==ImpDel.importid), "leftanti")
+#res5=res4.select ('importid').distinct()
+#res5.show()
+
+# COMMAND ----------
+
+res5 = res2.where(~(res2["importid"].isNull()) & ~(res2["importid2"].isNull()))\
+.join(ImpDel, (res2.importid==ImpDel.importid), "leftanti")\
+.select ('importid').distinct()
+res5.show()
 
 # COMMAND ----------
 
