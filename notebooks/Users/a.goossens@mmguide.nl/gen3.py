@@ -1,8 +1,4 @@
 # Databricks notebook source
-
-
-# COMMAND ----------
-
 import datetime
 from pyspark.sql.functions import lit
 from pyspark.sql.functions import explode
@@ -97,11 +93,6 @@ display(StrucDF)
 
 # COMMAND ----------
 
-
-query
-
-# COMMAND ----------
-
 jdbcUrl ="jdbc:sqlserver://serverxxxxxmuupl4c6zvywi.database.windows.net:1433;database=databasexxxmuupl4c6zvywi;user=Ard@serverxxxxxmuupl4c6zvywi;password=Goossens.;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;"
 
 pushdown_query = "(select [importid] importid2, [path] path2, [type] as type2 from FileColumns where Customer ='{}') FC".format(Customer)
@@ -134,8 +125,16 @@ ImpFit.show()
 
 # COMMAND ----------
 
-res2=StrucDF.crossJoin(ImpDist).join(ImpCol, (StrucDF.Name == ImpCol.path2) & (StrucDF.Type == ImpCol.type2) & (ImpDist.importid == ImpCol.importid2), how='full')
-res2.show()
+if ImpFit.count()==1: 
+  print("ok")
+else:
+  print("not ok")
+
+
+# COMMAND ----------
+
+#res2=StrucDF.crossJoin(ImpDist).join(ImpCol, (StrucDF.Name == ImpCol.path2) & (StrucDF.Type == ImpCol.type2) & (ImpDist.importid == ImpCol.importid2), how='full')
+#res2.show()
 
 # COMMAND ----------
 
@@ -152,8 +151,8 @@ res2.show()
 
 # COMMAND ----------
 
-ImpDel = res2.select('importid2').where(col("importid").isNull()).union(res2.select('importid').where(col("importid2").isNull())).distinct()
-display(ImpDel)
+#ImpDel = res2.select('importid2').where(col("importid").isNull()).union(res2.select('importid').where(col("importid2").isNull())).distinct()
+#display(ImpDel)
 
 # COMMAND ----------
 
@@ -172,26 +171,7 @@ display(ImpDel)
 
 # COMMAND ----------
 
-res5 = res2.where(~(res2["importid"].isNull()) & ~(res2["importid2"].isNull()))\
-.join(ImpDel, (res2.importid==ImpDel.importid), "leftanti")\
-.select ('importid').distinct()
-res5.show()
-
-# COMMAND ----------
-
--- combine datasets
-select isnull(C.importid,I.importid) importid , 
- case when F.path is null then 0 else 1 end In_F,
-  case when C.path is null then 0 else 1 end In_C
-  into #combi
-from #F F
-cross join (select distinct [importid] from #cust) I
-full join #cust C
-on  C.path=F.path
-and C.type=F.type
-and C.importid=I.importid
-
-# COMMAND ----------
-
-leftDF = filecolDF.join(StrucDF, filecolDF.path == StrucDF.Name,how='left')
-display(leftDF)
+#res5 = res2.where(~(res2["importid"].isNull()) & ~(res2["importid2"].isNull()))\
+#.join(ImpDel, (res2.importid==ImpDel.importid), "leftanti")\
+#.select ('importid').distinct()
+#res5.show()
