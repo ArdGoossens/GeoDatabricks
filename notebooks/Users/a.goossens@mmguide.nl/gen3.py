@@ -125,11 +125,15 @@ ImpFit.show()
 
 # COMMAND ----------
 
-if ImpFit.count()==1: 
+if ImpFit.count()==2: 
   print("ok")
 else:
-  print("not ok")
+  dbutils.notebook.exit("No matching import definition")
 
+
+# COMMAND ----------
+
+print('en verder...')
 
 # COMMAND ----------
 
