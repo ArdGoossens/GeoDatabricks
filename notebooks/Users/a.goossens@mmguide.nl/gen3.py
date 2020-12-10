@@ -1,6 +1,6 @@
 # Databricks notebook source
 import datetime
-from pyspark.sql.functions import lit
+from pyspark.sql.functions import lit, expr
 from pyspark.sql.functions import explode
 
 from pyspark.sql.functions import to_json, struct, split
@@ -26,14 +26,13 @@ def flatten(schema, prefix=None):
         name = prefix + '.' + ""+ field.name+"" if prefix else ""+field.name+""
         dtype = field.dataType
         Dstr =str(dtype)
-#       if isinstance(dtype, ArrayType):
-#            fields.append([name+"§"+"ArrayType"])
-#            dtype = dtype.elementType
-            
+        if isinstance(dtype, ArrayType):
+            fields.append([name+"§"+"ArrayType"])
+            dtype = dtype.elementType  
+        
         if isinstance(dtype, StructType):
             fields.append([name+ "§"+"StructType"])
-            fields += flatten(dtype, prefix=name)
-            
+            fields += flatten(dtype, prefix=name)            
         else:
             fields.append([name+"§" +Dstr])
 
@@ -48,13 +47,14 @@ def flatter(schema, prefix=None):
     df = df.withColumn('Name', split_col.getItem(0))
     df = df.withColumn('Type', split_col.getItem(1))
     df = df.drop('org')
+    df = df.dropDuplicates(['name'])
     return df
 
 # COMMAND ----------
 
 filename="DINOBRO_TimeEntities_20200623.json"
-filename="DINOBRO_EntityDescriptions_20200623.json"
-filename="DINOBRO_Entities_20200623.json"
+#filename="DINOBRO_EntityDescriptions_20200623.json"
+#filename="DINOBRO_Entities_20200623.json"
 Customer ="DINOBRO"
 nu= datetime.datetime.now()
 
@@ -95,29 +95,31 @@ display(StrucDF)
 
 jdbcUrl ="jdbc:sqlserver://serverxxxxxmuupl4c6zvywi.database.windows.net:1433;database=databasexxxmuupl4c6zvywi;user=Ard@serverxxxxxmuupl4c6zvywi;password=Goossens.;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;"
 
-pushdown_query = "(select [importid] importid2, [path] path2, [type] as type2 from FileColumns where Customer ='{}') FC".format(Customer)
+pushdown_query = "(select [importid] importid2, [path] path2 , colid from FileColumns where Customer ='{}') FC".format(Customer)
 
-ImpCol = spark.read.jdbc(url=jdbcUrl, table=pushdown_query, lowerBound=1, upperBound=100000, numPartitions=100)
-display(ImpCol)
+FileCol = spark.read.jdbc(url=jdbcUrl, table=pushdown_query, lowerBound=1, upperBound=100000, numPartitions=100)
+display(FileCol)
+
+
 
 
 # COMMAND ----------
 
 # distinct ImportId
-ImpDist =ImpCol.select(col("importid2").alias('importid')).distinct()
-#ImpDist.show()
+FileDist =FileCol.select(col("importid2").alias('importid')).distinct()
+#FileDist.show()
 
 #combine filecolumns with possible imports
-FileImp=StrucDF.crossJoin(ImpDist).join(ImpCol, (StrucDF.Name == ImpCol.path2) & (StrucDF.Type == ImpCol.type2) & (ImpDist.importid == ImpCol.importid2), how='full')
+FileImp=StrucDF.crossJoin(FileDist).join(FileCol, (StrucDF.Name == FileCol.path2) & (FileDist.importid == FileCol.importid2), how='full')
 #FileImp.show()
 
 #determine all imports that don't fit
-ImpDel = FileImp.select('importid2').where(col("importid").isNull()).union(FileImp.select('importid').where(col("importid2").isNull())).distinct()
-#display(ImpDel)
+FileDel = FileImp.select('importid2').where(col("importid").isNull()).union(FileImp.select('importid').where(col("importid2").isNull())).distinct()
+#display(FileDel)
 
 #remove ill fitting imports
 ImpFit = FileImp.where(~(FileImp["importid"].isNull()) & ~(FileImp["importid2"].isNull()))\
-.join(ImpDel, ImpDel.importid2 == FileImp.importid2, how="leftanti")\
+.join(FileDel, FileDel.importid2 == FileImp.importid2, how="leftanti")\
 .select ('importid2').distinct()
 ImpFit.show()
 
@@ -125,57 +127,130 @@ ImpFit.show()
 
 # COMMAND ----------
 
-if ImpFit.count()==2: 
-  print("ok")
+if ImpFit.count()==1: 
+  print("matching import definition found!")
 else:
   dbutils.notebook.exit("No matching import definition")
 
 
 # COMMAND ----------
 
-print('en verder...')
+ImportCode = ImpFit.collect()[0][0]
+#print (ImportCode)
+
+FileCol= FileCol.where(col('importid2')== ImportCode)
+#display(FileCol)
+
+pushdown_query = "(SELECT [recordtype],[colId],[fieldtype]  FROM [dbo].[ImportColumns] where importid ='{}') FC".format(ImportCode)
+
+ImportCol = spark.read.jdbc(url=jdbcUrl, table=pushdown_query, lowerBound=1, upperBound=100000, numPartitions=100)
+display(ImportCol)
 
 # COMMAND ----------
 
-#res2=StrucDF.crossJoin(ImpDist).join(ImpCol, (StrucDF.Name == ImpCol.path2) & (StrucDF.Type == ImpCol.type2) & (ImpDist.importid == ImpCol.importid2), how='full')
-#res2.show()
+ImportCol= ImportCol.join(FileCol,ImportCol.colId==FileCol.colid, how='inner').select(ImportCol.recordtype,ImportCol.colId,ImportCol.fieldtype,FileCol.path2)
 
 # COMMAND ----------
 
-#res = StrucDF.crossJoin(ImpDist)
+display(ImportCol)
+
+# COMMAND ----------
+
+StrucDF2=StrucDF.withColumn('point',concat('Name' ,lit('.')))
+
+display(StrucDF2)
 
 
-#res.show()
+
+
+
+
+# COMMAND ----------
+
+#display(ImportCol.join(StrucDF, StrucDF.Name.contains(ImportCol.path2), how='left'))
+#display(StrucDF.join(ImportCol, ImportCol.path2.contains(StrucDF.Name), how='inner'))
+
+
+#display(StrucDF.join(ImportCol, StrucDF.Name.substring(1,F.length('path2')) == ImportCol.path2 , how='inner'))
+
+#display(StrucDF.join(ImportCol, StrucDF.Name.substr(1,F.length(StrucDF.Name).toint()) == ImportCol.path2.substr(1,F.length(ImportCol.path2)) , how='inner'))
+
+arrayDF = StrucDF.join(ImportCol, (ImportCol.path2.startswith(concat(StrucDF.Name,lit('.'))))  & (StrucDF.Type.like('%ArrayType%')), how='inner').select('Name').distinct()
+ArrayCode=""
+ArrayCode = arrayDF.collect()[0][0]
+print (ArrayCode)
+
+
+# COMMAND ----------
+
+PycomTotal =str("")
+PycomExplode1 =str("")
+PycomExplode2 =str("")
+PycomSelect = str("")
+
+
+if ArrayCode!="":
+  PycomExplode1= "explode(F.col('{}')).alias('{}_exploded'),".format(ArrayCode,ArrayCode)
+  
+  PycomExplode2= ".drop('{}_exploded')".format(ArrayCode)
+
+for row in ImportCol.collect():
+  recordtype= str(row.recordtype)
+  colId= str(row.colId)
+  fieldtype= str(row.fieldtype)
+  path2= str(row.path2)
+  line = "col('{}').alias('Col{}'),".format(path2,colId)
+  if path2.startswith(ArrayCode):
+    line=line.replace("'"+ArrayCode+'.',"'"+ArrayCode+"_exploded.")
+  PycomSelect=PycomSelect+line
+
+PycomSelect=PycomSelect + "lit(nu).alias('ImportDateTime'))  "
+
+PycomTotal = "DFq= JsonDF.select({}{}{}".format(PycomExplode1,PycomSelect,PycomExplode2)
+# print (PycomExplode1)
+# print (PycomSelect)
+# print (PycomExplode2)
+
+print (PycomTotal)
+        # cmd ='DFq= JsonDF.select(\
+        #  explode(F.col("TimeSerieDtos")).alias("TimeSerieDtos_exploded"),\
+        # col("EntityExternalId").alias("EntityName"),col("TimeSerieDtos_exploded.Time").alias("StartDate"),col("TimeResolution").alias("TimeResolution"),
+        # col("TimeSerieDtos_exploded.Tags").alias("Tags"),col("TimeSerieDtos_exploded.Value").alias("Value"))\
+        #  .withColumn("ImportDateTime",lit(nu))\
+        #  .drop("TimeSerieDtos_exploded")\
+
+
+# COMMAND ----------
+
+DFq= JsonDF.select(explode(col('TimeSerieDtos')).alias('TimeSerieDtos_exploded'),col('EntityExternalId').alias('Col53'),col('TimeResolution').alias('Col56'),col('TimeSerieDtos_exploded.Tags').alias('Col59'),col('TimeSerieDtos_exploded.Time').alias('Col63'),col('TimeSerieDtos_exploded.Value').alias('Col65'),lit(nu).alias('ImportDateTime')).drop('TimeSerieDtos_exploded')
+
+display(DFq)
+
+# COMMAND ----------
+
+cols = list(set(JsonDF.columns) - {'TimeSerieDtos'})
+
+display(JsonDF.select(\
+explode(F.col("TimeSerieDtos")).alias("TimeSerieDtos_exploded"))
+  .drop("TimeSerieDtos")\
+  )
+
+
+# COMMAND ----------
+
+df=spark.createDataFrame([("abcdff",4),("dlaldajfa",3)],["valuetext","Glength"])
+from pyspark.sql.functions import *
+df.withColumn("vx",expr("substring(valuetext,0,Glength)")).show()
+
+df.show()
 
 # COMMAND ----------
 
 
-#res2=res.join(ImpCol, (res.Name == ImpCol.path2) & (res.Type == ImpCol.type2) & (res.importid == ImpCol.importid2), how='full')
-#res2.show()
 
 # COMMAND ----------
 
-#ImpDel = res2.select('importid2').where(col("importid").isNull()).union(res2.select('importid').where(col("importid2").isNull())).distinct()
-#display(ImpDel)
+
 
 # COMMAND ----------
 
-#ImpDel1 = res2.select('importid').where(col("importid2").isNull()).distinct()
-#ImpDel2 = res2.select('importid2').where(col("importid").isNull()).distinct()
-
-#ImpDel = ImpDel1.union(ImpDel2).distinct()
-#display(ImpDel)
-
-# COMMAND ----------
-
-#res3 = res2.where(~(res2["importid"].isNull()) & ~(res2["importid2"].isNull()))
-#res4=  res3.join(ImpDel, (res2.importid==ImpDel.importid), "leftanti")
-#res5=res4.select ('importid').distinct()
-#res5.show()
-
-# COMMAND ----------
-
-#res5 = res2.where(~(res2["importid"].isNull()) & ~(res2["importid2"].isNull()))\
-#.join(ImpDel, (res2.importid==ImpDel.importid), "leftanti")\
-#.select ('importid').distinct()
-#res5.show()
