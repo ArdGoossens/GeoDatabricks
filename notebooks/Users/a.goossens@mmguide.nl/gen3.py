@@ -1,6 +1,7 @@
 # Databricks notebook source
 import datetime
-from pyspark.sql.functions import lit, expr
+
+from pyspark.sql.functions import lit, expr,concat
 from pyspark.sql.functions import explode
 
 from pyspark.sql.functions import to_json, struct, split
@@ -12,7 +13,7 @@ from pyspark.sql.window import Window
 from pyspark.sql.functions import row_number
 from pyspark.sql.functions import desc
 
-from pyspark.sql.types import StructType, ArrayType  ,StructField,StringType
+from pyspark.sql.types import StructType, ArrayType  ,StructField,StringType, TimestampType
 from pandas import DataFrame
 
 
@@ -52,6 +53,8 @@ def flatter(schema, prefix=None):
 
 # COMMAND ----------
 
+# SELECTING THE FILE FOR TESTING PURPOSES
+
 filename="DINOBRO_TimeEntities_20200623.json"
 #filename="DINOBRO_EntityDescriptions_20200623.json"
 #filename="DINOBRO_Entities_20200623.json"
@@ -61,16 +64,17 @@ nu= datetime.datetime.now()
 
 # COMMAND ----------
 
+# SETTING THE CONNECTION PROPERTIES, SHOULD COME FROM KEYVAULT
 StorageSource = "wasbs://"+"archive"+"@"+"storagexxxxmuupl4c6zvywi"+".blob.core.windows.net"
 StorageConfig= "fs.azure.account.key."+"storagexxxxmuupl4c6zvywi"+".blob.core.windows.net"
 StorageKey = "DlD0gMuSD5Scix9v1SeoDkYdWYTray+gGqbsaZ/lWSTDZahq4VTwCUR2W8rALLWVv6vao4Z7/cT4xkQKOJdcsg=="
 JsonFilename ="dbfs:/mnt/GeoUpload/" +filename
+jdbcUrl="jdbc:sqlserver://serverxxxxxmuupl4c6zvywi.database.windows.net:1433;database=databasexxxmuupl4c6zvywi;user=Ard@serverxxxxxmuupl4c6zvywi;password=Goossens.;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;"
 
 
 # COMMAND ----------
 
 #mount the container if not yet mounted
-
 if not any(mount.mountPoint == '/mnt/archive' for mount in dbutils.fs.mounts()):
   dbutils.fs.mount(
    source = StorageSource,
@@ -81,52 +85,44 @@ if not any(mount.mountPoint == '/mnt/archive' for mount in dbutils.fs.mounts()):
 
 # COMMAND ----------
 
-# read the JSON file in a dataframe
-JsonDF = (spark.read 
+# read the JSON file into a dataframe
+OriginalDataDF = (spark.read 
     .option("inferSchema", "true")
     .json(JsonFilename, multiLine=True)
     .withColumn('ImportDateTime',lit(nu))
  )
-StrucDF= flatter(JsonDF.schema)
-display(StrucDF)
-
 
 # COMMAND ----------
 
-jdbcUrl ="jdbc:sqlserver://serverxxxxxmuupl4c6zvywi.database.windows.net:1433;database=databasexxxmuupl4c6zvywi;user=Ard@serverxxxxxmuupl4c6zvywi;password=Goossens.;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;"
+#insering the schema information into a dataframe
+SchemaDF= flatter(OriginalDataDF.schema)
 
+# COMMAND ----------
+
+#getting the configured file defintions on a columns level 
 pushdown_query = "(select [importid] importid2, [path] path2 , colid from FileColumns where Customer ='{}') FC".format(Customer)
-
-FileCol = spark.read.jdbc(url=jdbcUrl, table=pushdown_query, lowerBound=1, upperBound=100000, numPartitions=100)
-display(FileCol)
-
-
-
+FileDefinitionsDF = spark.read.jdbc(url=jdbcUrl, table=pushdown_query, lowerBound=1, upperBound=100000, numPartitions=100)
 
 # COMMAND ----------
 
-# distinct ImportId
-FileDist =FileCol.select(col("importid2").alias('importid')).distinct()
-#FileDist.show()
+# make a dataframe of the different file defintions
+FileDist =FileDefinitionsDF.select(col("importid2").alias('importid')).distinct()
 
-#combine filecolumns with possible imports
-FileImp=StrucDF.crossJoin(FileDist).join(FileCol, (StrucDF.Name == FileCol.path2) & (FileDist.importid == FileCol.importid2), how='full')
-#FileImp.show()
+#combine the columns found in the submitted file with all possible file definitions
+FileImp=SchemaDF.crossJoin(FileDist).join(FileDefinitionsDF, (SchemaDF.Name == FileDefinitionsDF.path2) & (FileDist.importid == FileDefinitionsDF.importid2), how='full')
 
-#determine all imports that don't fit
+#determine all file defnititions that don't fit ( missed item in submitted file or misses item in definition)
 FileDel = FileImp.select('importid2').where(col("importid").isNull()).union(FileImp.select('importid').where(col("importid2").isNull())).distinct()
 #display(FileDel)
 
-#remove ill fitting imports
+#remove all rows for ill fitting imports
 ImpFit = FileImp.where(~(FileImp["importid"].isNull()) & ~(FileImp["importid2"].isNull()))\
 .join(FileDel, FileDel.importid2 == FileImp.importid2, how="leftanti")\
 .select ('importid2').distinct()
-ImpFit.show()
-
-
 
 # COMMAND ----------
 
+# if we found exactly ONE file defintion, than we can continue, else abort here
 if ImpFit.count()==1: 
   print("matching import definition found!")
 else:
@@ -135,122 +131,141 @@ else:
 
 # COMMAND ----------
 
+# put the filedefinition code into a variable
 ImportCode = ImpFit.collect()[0][0]
-#print (ImportCode)
 
-FileCol= FileCol.where(col('importid2')== ImportCode)
-#display(FileCol)
+# remove all filedefinitions except the one we matched on
+FileDefinitionsDF= FileDefinitionsDF.where(col('importid2')== ImportCode)
 
-pushdown_query = "(SELECT [recordtype],[colId],[fieldtype]  FROM [dbo].[ImportColumns] where importid ='{}') FC".format(ImportCode)
-
-ImportCol = spark.read.jdbc(url=jdbcUrl, table=pushdown_query, lowerBound=1, upperBound=100000, numPartitions=100)
-display(ImportCol)
+#get the columns that are going to be imported
+pushdown_query = "(SELECT [DatasetType],DatasetID,[colId],[fieldtype]  FROM [dbo].[ImportColumns] where importid ='{}') FC".format(ImportCode)
+ImportDefinitionDF = spark.read.jdbc(url=jdbcUrl, table=pushdown_query, lowerBound=1, upperBound=100000, numPartitions=100)
 
 # COMMAND ----------
 
-ImportCol= ImportCol.join(FileCol,ImportCol.colId==FileCol.colid, how='inner').select(ImportCol.recordtype,ImportCol.colId,ImportCol.fieldtype,FileCol.path2)
+# enrich the imported columns with the path found in the file
+ImportDefinitionDF= ImportDefinitionDF.join(FileDefinitionsDF,ImportDefinitionDF.colId==FileDefinitionsDF.colid, how='inner').select(ImportDefinitionDF.DatasetType,ImportDefinitionDF.DatasetID,ImportDefinitionDF.colId,ImportDefinitionDF.fieldtype,FileDefinitionsDF.path2)
 
 # COMMAND ----------
 
-display(ImportCol)
-
-# COMMAND ----------
-
-StrucDF2=StrucDF.withColumn('point',concat('Name' ,lit('.')))
-
-display(StrucDF2)
-
-
-
-
-
-
-# COMMAND ----------
-
-#display(ImportCol.join(StrucDF, StrucDF.Name.contains(ImportCol.path2), how='left'))
-#display(StrucDF.join(ImportCol, ImportCol.path2.contains(StrucDF.Name), how='inner'))
-
-
-#display(StrucDF.join(ImportCol, StrucDF.Name.substring(1,F.length('path2')) == ImportCol.path2 , how='inner'))
-
-#display(StrucDF.join(ImportCol, StrucDF.Name.substr(1,F.length(StrucDF.Name).toint()) == ImportCol.path2.substr(1,F.length(ImportCol.path2)) , how='inner'))
-
-arrayDF = StrucDF.join(ImportCol, (ImportCol.path2.startswith(concat(StrucDF.Name,lit('.'))))  & (StrucDF.Type.like('%ArrayType%')), how='inner').select('Name').distinct()
-ArrayCode=""
+# check if there is an array present that needs to be expoded and put in in a variable
+arrayDF = SchemaDF.join(ImportDefinitionDF, (ImportDefinitionDF.path2.startswith( concat(SchemaDF.Name,lit('.'))))  & (SchemaDF.Type.like('%ArrayType%')), how='inner').select('Name').distinct()
 ArrayCode = arrayDF.collect()[0][0]
-print (ArrayCode)
 
 
 # COMMAND ----------
 
+# this code extracts all the needed columns out of the original file. The columns are named with the column ID's used in the database.
+
+#prep with empty valiables
 PycomTotal =str("")
 PycomExplode1 =str("")
 PycomExplode2 =str("")
 PycomSelect = str("")
 
-
+# if there is an array, filling in the needed code
 if ArrayCode!="":
-  PycomExplode1= "explode(F.col('{}')).alias('{}_exploded'),".format(ArrayCode,ArrayCode)
-  
+  PycomExplode1= "explode(F.col('{}')).alias('{}_exploded'),".format(ArrayCode,ArrayCode)  
   PycomExplode2= ".drop('{}_exploded')".format(ArrayCode)
 
-for row in ImportCol.collect():
-  recordtype= str(row.recordtype)
+# get the unique columns
+ImportColumnsDF = ImportDefinitionDF.select('colId','path2').distinct()
+  
+# loop though all needed columns and build the select part of the code
+for row in ImportColumnsDF.collect():
   colId= str(row.colId)
-  fieldtype= str(row.fieldtype)
   path2= str(row.path2)
-  line = "col('{}').alias('Col{}'),".format(path2,colId)
+  line = "col('{}').cast('string').alias('Col{}'),".format(path2,colId)
+  # if there in as array, use the exploded object for those columns
   if path2.startswith(ArrayCode):
     line=line.replace("'"+ArrayCode+'.',"'"+ArrayCode+"_exploded.")
   PycomSelect=PycomSelect+line
-
 PycomSelect=PycomSelect + "lit(nu).alias('ImportDateTime'))  "
 
-PycomTotal = "DFq= JsonDF.select({}{}{}".format(PycomExplode1,PycomSelect,PycomExplode2)
-# print (PycomExplode1)
-# print (PycomSelect)
-# print (PycomExplode2)
+#building the entire python command
+PycomTotal = "ImportDataDF= OriginalDataDF.select({}{}{}".format(PycomExplode1,PycomSelect,PycomExplode2)
 
-print (PycomTotal)
-        # cmd ='DFq= JsonDF.select(\
-        #  explode(F.col("TimeSerieDtos")).alias("TimeSerieDtos_exploded"),\
-        # col("EntityExternalId").alias("EntityName"),col("TimeSerieDtos_exploded.Time").alias("StartDate"),col("TimeResolution").alias("TimeResolution"),
-        # col("TimeSerieDtos_exploded.Tags").alias("Tags"),col("TimeSerieDtos_exploded.Value").alias("Value"))\
-        #  .withColumn("ImportDateTime",lit(nu))\
-        #  .drop("TimeSerieDtos_exploded")\
+exec(PycomTotal)
+
+# COMMAND ----------
+
+# now that we have the columns we need, we can start builing the generic datasets
+#create empty dataframes
+AttributeScheme = StructType([
+  StructField('Entity', StringType(), True),
+  StructField('Date', StringType(), True),
+  StructField('Value', StringType(), True),
+  StructField('ImportDateTime', TimestampType(), True)])
+LocationScheme = StructType([
+  StructField('Entity', StringType(), True),
+  StructField('Date', StringType(), True),
+  StructField('Value', StringType(), True),
+  StructField('ImportDateTime', TimestampType(), True)])
+MeaseuementScheme = StructType([
+  StructField('Entity', StringType(), True),
+  StructField('Date', StringType(), True),
+  StructField('Value', StringType(), True),
+  StructField('Tags', StringType(), True),
+  StructField('TimeResolution', StringType(), True),
+  StructField('ImportDateTime', TimestampType(), True)])
+KeyScheme = StructType([
+  StructField('EntityFrom', StringType(), True),
+  StructField('EntityTo', StringType(), True),
+  StructField('KeyFrom', StringType(), True),
+  StructField('KeyTo', StringType(), True),
+  StructField('Date', StringType(), True),
+  StructField('ImportDateTime', TimestampType(), True)])
+
+AllAttributeDF = spark.createDataFrame(spark.sparkContext.emptyRDD(),AttributeScheme)
+AllLocationDF = spark.createDataFrame(spark.sparkContext.emptyRDD(),LocationScheme)
+AllMeasurementDF = spark.createDataFrame(spark.sparkContext.emptyRDD(),MeaseuementScheme)
+AllKeyDF = spark.createDataFrame(spark.sparkContext.emptyRDD(),KeyScheme)
+
+DatasetsDF = ImportDefinitionDF.select('DatasetType','DatasetID').distinct()
+
+
 
 
 # COMMAND ----------
 
-DFq= JsonDF.select(explode(col('TimeSerieDtos')).alias('TimeSerieDtos_exploded'),col('EntityExternalId').alias('Col53'),col('TimeResolution').alias('Col56'),col('TimeSerieDtos_exploded.Tags').alias('Col59'),col('TimeSerieDtos_exploded.Time').alias('Col63'),col('TimeSerieDtos_exploded.Value').alias('Col65'),lit(nu).alias('ImportDateTime')).drop('TimeSerieDtos_exploded')
+for row in DatasetsDF.collect():
+  DatasetType= str(row.DatasetType)
+  DatasetID= str(row.DatasetID)
+  DatasetDefinitionDF = ImportDefinitionDF.where(col('DatasetID')== DatasetID)
+  PycomSelect = str("")
+  PycomTotal =str("")
 
-display(DFq)
+  
+  for row2 in DatasetDefinitionDF.collect():
+    colId= str(row2.colId)
+    fieldtype= str(row2.fieldtype)
+    PycomSelect+="col('col{}').alias('{}'),".format(colId,fieldtype)
+  
+  PycomTotal ="NewDF = ImportDataDF.select({}col('ImportDateTime'))".format(PycomSelect)
+  exec(PycomTotal)
+  
+  if DatasetType=="Attribute":
+    AllAttributeDF = AllAttributeDF.union(NewDF)
+  elif DatasetType=="Location":
+    AllLocationDF= AllLocationDF.union(NewDF)
+  elif DatasetType=="measurement":
+    AllMeasurementDF= AllMeasurementDF.union(NewDF)
+  elif DatasetType=="Key":
+    AllKeyDF= AllKeyDF.union(NewDF)
+
+
 
 # COMMAND ----------
 
-cols = list(set(JsonDF.columns) - {'TimeSerieDtos'})
-
-display(JsonDF.select(\
-explode(F.col("TimeSerieDtos")).alias("TimeSerieDtos_exploded"))
-  .drop("TimeSerieDtos")\
-  )
-
+display(ImportDefinitionDF)
 
 # COMMAND ----------
 
-df=spark.createDataFrame([("abcdff",4),("dlaldajfa",3)],["valuetext","Glength"])
-from pyspark.sql.functions import *
-df.withColumn("vx",expr("substring(valuetext,0,Glength)")).show()
-
-df.show()
+ImportDataDF.printSchema()
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
-
+ImportDataDF.select(col('col53').cast('string').alias('Entity'),col('col56').cast('string').alias('TimeResolution'),col('col59').cast('string').alias('Tags'),col('col63').cast('string').alias('Date'),col('col65').cast('string').alias('Value'),col('ImportDateTime')).show()
 
 # COMMAND ----------
 
