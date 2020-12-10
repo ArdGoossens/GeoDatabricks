@@ -56,7 +56,7 @@ def flatter(schema, prefix=None):
 # SELECTING THE FILE FOR TESTING PURPOSES
 
 filename="DINOBRO_TimeEntities_20200623.json"
-#filename="DINOBRO_EntityDescriptions_20200623.json"
+filename="DINOBRO_EntityDescriptions_20200623.json"
 #filename="DINOBRO_Entities_20200623.json"
 Customer ="DINOBRO"
 nu= datetime.datetime.now()
@@ -150,8 +150,10 @@ ImportDefinitionDF= ImportDefinitionDF.join(FileDefinitionsDF,ImportDefinitionDF
 
 # check if there is an array present that needs to be expoded and put in in a variable
 arrayDF = SchemaDF.join(ImportDefinitionDF, (ImportDefinitionDF.path2.startswith( concat(SchemaDF.Name,lit('.'))))  & (SchemaDF.Type.like('%ArrayType%')), how='inner').select('Name').distinct()
-ArrayCode = arrayDF.collect()[0][0]
-
+if arrayDF.count()>0:
+  ArrayCode = arrayDF.collect()[0][0]
+else:
+  ArrayCode=""
 
 # COMMAND ----------
 
@@ -190,30 +192,34 @@ exec(PycomTotal)
 # COMMAND ----------
 
 # now that we have the columns we need, we can start builing the generic datasets
-#create empty dataframes
+#create empty dataframes with the columns in alfabatical order excempting ImportDateTime
 AttributeScheme = StructType([
-  StructField('Entity', StringType(), True),
+  StructField('DatasetID', StringType(), True),
   StructField('Date', StringType(), True),
+  StructField('Entity', StringType(), True),
   StructField('Value', StringType(), True),
   StructField('ImportDateTime', TimestampType(), True)])
 LocationScheme = StructType([
-  StructField('Entity', StringType(), True),
+  StructField('DatasetID', StringType(), True),
   StructField('Date', StringType(), True),
+  StructField('Entity', StringType(), True),
   StructField('Value', StringType(), True),
   StructField('ImportDateTime', TimestampType(), True)])
 MeaseuementScheme = StructType([
-  StructField('Entity', StringType(), True),
+  StructField('DatasetID', StringType(), True),
   StructField('Date', StringType(), True),
-  StructField('Value', StringType(), True),
+  StructField('Entity', StringType(), True),
   StructField('Tags', StringType(), True),
   StructField('TimeResolution', StringType(), True),
+  StructField('Value', StringType(), True),
   StructField('ImportDateTime', TimestampType(), True)])
 KeyScheme = StructType([
+  StructField('DatasetID', StringType(), True),
+  StructField('Date', StringType(), True),
   StructField('EntityFrom', StringType(), True),
   StructField('EntityTo', StringType(), True),
   StructField('KeyFrom', StringType(), True),
   StructField('KeyTo', StringType(), True),
-  StructField('Date', StringType(), True),
   StructField('ImportDateTime', TimestampType(), True)])
 
 AllAttributeDF = spark.createDataFrame(spark.sparkContext.emptyRDD(),AttributeScheme)
@@ -228,22 +234,23 @@ DatasetsDF = ImportDefinitionDF.select('DatasetType','DatasetID').distinct()
 
 # COMMAND ----------
 
+# looping through possible datasets to be generated
 for row in DatasetsDF.collect():
   DatasetType= str(row.DatasetType)
   DatasetID= str(row.DatasetID)
-  DatasetDefinitionDF = ImportDefinitionDF.where(col('DatasetID')== DatasetID)
+  DatasetDefinitionDF = ImportDefinitionDF.where(col('DatasetID')== DatasetID).orderBy(col('fieldtype'))
   PycomSelect = str("")
   PycomTotal =str("")
-
-  
+  # building the command for one dataset
   for row2 in DatasetDefinitionDF.collect():
     colId= str(row2.colId)
     fieldtype= str(row2.fieldtype)
+    DatasetID= str(row2.DatasetID)
     PycomSelect+="col('col{}').alias('{}'),".format(colId,fieldtype)
-  
-  PycomTotal ="NewDF = ImportDataDF.select({}col('ImportDateTime'))".format(PycomSelect)
+  # extracting the data
+  PycomTotal ="NewDF = ImportDataDF.select(lit(DatasetID),{}col('ImportDateTime'))".format(PycomSelect)
   exec(PycomTotal)
-  
+  # adding the data to the prepared datasets
   if DatasetType=="Attribute":
     AllAttributeDF = AllAttributeDF.union(NewDF)
   elif DatasetType=="Location":
@@ -253,19 +260,18 @@ for row in DatasetsDF.collect():
   elif DatasetType=="Key":
     AllKeyDF= AllKeyDF.union(NewDF)
 
+# COMMAND ----------
 
+# and now we can save the data to the database
+display(AllAttributeDF)
 
 # COMMAND ----------
 
-display(ImportDefinitionDF)
+AllMeasurementDF.printSchema()
 
 # COMMAND ----------
 
-ImportDataDF.printSchema()
 
-# COMMAND ----------
-
-ImportDataDF.select(col('col53').cast('string').alias('Entity'),col('col56').cast('string').alias('TimeResolution'),col('col59').cast('string').alias('Tags'),col('col63').cast('string').alias('Date'),col('col65').cast('string').alias('Value'),col('ImportDateTime')).show()
 
 # COMMAND ----------
 
