@@ -18,6 +18,14 @@ from pyspark.sql.functions import desc
 from pyspark.sql.types import StructType, ArrayType  ,StructField,StringType, TimestampType
 from pandas import DataFrame
 
+Runschema = StructType([
+  StructField('StagingTable', StringType(), True),
+  StructField('FileName', StringType(), True),
+  StructField('Customer', StringType(), True)
+  #,StructField('TimeStamp', TimestampType(), True)
+  ])
+
+
 #CHECK IMPORTS FROM PACKAGES NEEDED
 
 
@@ -58,10 +66,15 @@ def flatter(schema, prefix=None):
 
 # SELECTING THE FILE FOR TESTING PURPOSES
 
-filename="DINOBRO_TimeEntities_20200623.json"
-filename="DINOBRO_EntityDescriptions_20200623.json"
+#filename="DINOBRO_TimeEntities_20200623.json"
+#filename="DINOBRO_EntityDescriptions_20200623.json"
 #filename="DINOBRO_Entities_20200623.json"
-Customer ="DINOBRO"
+filename ="SUNFLOWER_Entities_20200616.json"
+filename ="SUNFLOWER_EntityDescriptions_20200616.json"
+filename ="SUNFLOWER_TimeEntities_20200616.json"
+
+#Customer ="DINOBRO"
+Customer ="SUNFLOWER"
 
 
 # COMMAND ----------
@@ -209,11 +222,18 @@ database_name = "databasexxxmuupl4c6zvywi"
 url = server_name + ";" + "databaseName=" + database_name + ";"
 
 table_name = RunID
+table_name2 ='NewRun2'
 username = "Ard"
 password = "Goossens." # Please specify password here
 
-try:
-  ImportDataDF.write \
+#RunDF =spark.createDataFrame([(RunID,filename,Customer, datetime.datetime.now())],Runschema)
+RunDF =spark.createDataFrame([(RunID,filename,Customer)],Runschema)
+
+
+
+# COMMAND ----------
+
+ImportDataDF.write \
     .format("com.microsoft.sqlserver.jdbc.spark") \
     .mode("overwrite") \
     .option("url", url) \
@@ -221,11 +241,16 @@ try:
     .option("user", username) \
     .option("password", password) \
     .save()
-except ValueError as error :
-    print("Connector write failed", error)
 
-# COMMAND ----------
 
+RunDF.write \
+    .format("com.microsoft.sqlserver.jdbc.spark") \
+    .mode("append") \
+    .option("url", url) \
+    .option("dbtable", 'NewRun') \
+    .option("user", username) \
+    .option("password", password) \
+    .save()
 
 
 # COMMAND ----------
