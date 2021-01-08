@@ -220,7 +220,7 @@ exec(PycomTotal)
 #display(arrayDF)
 #print(ArrayCode)
 #arrayDF.count()
-arrayDF.collect()[0][0]
+#arrayDF.collect()[0][0]
 
 # COMMAND ----------
 
