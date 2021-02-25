@@ -86,6 +86,7 @@ StorageKey = "DlD0gMuSD5Scix9v1SeoDkYdWYTray+gGqbsaZ/lWSTDZahq4VTwCUR2W8rALLWVv6
 JsonFilename ="dbfs:/mnt/GeoUpload/" +filename
 jdbcUrl="jdbc:sqlserver://serverxxxxxmuupl4c6zvywi.database.windows.net:1433;database=databasexxxmuupl4c6zvywi;user=Ard@serverxxxxxmuupl4c6zvywi;password=Goossens.;encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;"
 
+#staging table name
 pushdown_query = "(select  NEWID() as ID) FC"
 RunID = spark.read.jdbc(url=jdbcUrl, table=pushdown_query, lowerBound=1, upperBound=100000, numPartitions=100).collect()[0][0]
 RunID='Stg_'+RunID.replace('-','')
@@ -233,16 +234,17 @@ RunDF =spark.createDataFrame([(RunID,filename,Customer)],Runschema)
 
 # COMMAND ----------
 
+# saving the staging table
 ImportDataDF.write \
     .format("com.microsoft.sqlserver.jdbc.spark") \
     .mode("overwrite") \
     .option("url", url) \
-    .option("dbtable", table_name) \
+    .option("dbtable", RunID) \
     .option("user", username) \
     .option("password", password) \
     .save()
 
-
+# saving the metadata
 RunDF.write \
     .format("com.microsoft.sqlserver.jdbc.spark") \
     .mode("append") \
